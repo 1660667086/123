@@ -15,7 +15,8 @@ CUR_DIR=$( pwd )
 
 # base url
 methods="Online"
-BASE_URL="https://github.com/loyess/Shell/raw/master"
+BASE_URL="BASE_URL="https://raw.githubusercontent.com/1660667086/123/master"
+"
 if [ -e install ] && [ -e prepare ] && [ -e service ] && [ -e templates ] && [ -e utils ] && [ -e webServer ]; then
     methods="Local"
     BASE_URL="${CUR_DIR}" 
