@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_PRIORITY=critical
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+export UCF_FORCE_CONFFOLD=1
 
 UPSTREAM_URL="${SS_PLUGINS_UPSTREAM_URL:-https://github.com/loyess/Shell/archive/refs/heads/master.tar.gz}"
 INSTALL_DIR="${SS_PLUGINS_INSTALL_DIR:-/root/ss-plugins-fixed}"
@@ -20,8 +25,20 @@ else
     exit 1
 fi
 
-apt_update_safe(){
+configure_noninteractive_apt(){
     export DEBIAN_FRONTEND=noninteractive
+    export DEBIAN_PRIORITY=critical
+    export NEEDRESTART_MODE=a
+    export NEEDRESTART_SUSPEND=1
+    export UCF_FORCE_CONFFOLD=1
+    if [ "${PM}" = "apt" ] && { [ -d /etc/needrestart ] || [ -e /usr/sbin/needrestart ]; }; then
+        mkdir -p /etc/needrestart/conf.d
+        printf "%s\n" "\$nrconf{restart} = 'a';" "\$nrconf{kernelhints} = 0;" > /etc/needrestart/conf.d/99-ss-plugins.conf
+    fi
+}
+
+apt_update_safe(){
+    configure_noninteractive_apt
     timeout 240 apt-get \
         -o Dpkg::Use-Pty=0 \
         -o APT::Color=0 \
@@ -37,11 +54,19 @@ apt_update_safe(){
     return ${status}
 }
 
+apt_install_safe(){
+    configure_noninteractive_apt
+    apt-get -y \
+        -o Dpkg::Use-Pty=0 \
+        -o Dpkg::Options::=--force-confdef \
+        -o Dpkg::Options::=--force-confold \
+        install "$@"
+}
+
 install_bootstrap_deps(){
     if [ "${PM}" = "apt" ]; then
-        export DEBIAN_FRONTEND=noninteractive
         apt_update_safe
-        apt-get -y install ca-certificates curl wget tar gzip patch
+        apt_install_safe ca-certificates curl wget tar gzip patch
     else
         yum install -y ca-certificates curl wget tar gzip patch
     fi
@@ -81,7 +106,7 @@ cd "${PATCH_DIR}"
 patch -p1 <<'SS_PLUGINS_FIXED_PATCH'
 diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 --- base/RUN_FIXED.md	1970-01-01 08:00:00
-+++ fixed/RUN_FIXED.md	2026-04-26 11:05:46
++++ fixed/RUN_FIXED.md	2026-04-26 11:39:57
 @@ -0,0 +1,27 @@
 +# ss-plugins fixed runner
 +
@@ -111,8 +136,8 @@ diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 +- Fixes mbedTLS install destination so libraries are installed under the normal
 +  prefix rather than `/usr/usr/local`.
 diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.sh
---- base/install/shadowsocks_install.sh	2026-04-26 11:05:45
-+++ fixed/install/shadowsocks_install.sh	2026-04-26 11:05:46
+--- base/install/shadowsocks_install.sh	2026-04-26 11:39:57
++++ fixed/install/shadowsocks_install.sh	2026-04-26 11:39:57
 @@ -1,9 +1,29 @@
  install_shadowsocks_libev(){
      cd ${CUR_DIR}
@@ -146,8 +171,8 @@ diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.
          chmod +x ${SHADOWSOCKS_LIBEV_INIT}
          local service_name=$(basename ${SHADOWSOCKS_LIBEV_INIT})
 diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.sh
---- base/install/simple_obfs_install.sh	2026-04-26 11:05:45
-+++ fixed/install/simple_obfs_install.sh	2026-04-26 11:05:46
+--- base/install/simple_obfs_install.sh	2026-04-26 11:39:57
++++ fixed/install/simple_obfs_install.sh	2026-04-26 11:39:57
 @@ -1,7 +1,7 @@
  install_simple_obfs(){
      cd ${CUR_DIR}
@@ -165,9 +190,21 @@ diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.
 \ No newline at end of file
 +}
 diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
---- base/ss-plugins.sh	2026-04-26 11:05:45
-+++ fixed/ss-plugins.sh	2026-04-26 11:05:46
-@@ -10,7 +10,8 @@
+--- base/ss-plugins.sh	2026-04-26 11:39:57
++++ fixed/ss-plugins.sh	2026-04-26 11:39:57
+@@ -1,6 +1,11 @@
+ #!/usr/bin/env bash
+ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+ export PATH
++export DEBIAN_FRONTEND=noninteractive
++export DEBIAN_PRIORITY=critical
++export NEEDRESTART_MODE=a
++export NEEDRESTART_SUSPEND=1
++export UCF_FORCE_CONFFOLD=1
+ 
+ 
+ # shell version
+@@ -10,7 +15,8 @@
  
  
  # current path
@@ -177,7 +214,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
  
  
  # base url
-@@ -457,14 +458,15 @@
+@@ -457,14 +463,19 @@
      local package_name=$1
      
      if check_sys packageManager yum; then
@@ -192,16 +229,27 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 -        apt-get -y install $1 > /dev/null 2>&1
 +        export DEBIAN_FRONTEND=noninteractive
 +        apt_update_safe
-+        apt-get -y install $1
++        apt-get -y \
++            -o Dpkg::Use-Pty=0 \
++            -o Dpkg::Options::=--force-confdef \
++            -o Dpkg::Options::=--force-confold \
++            install $1
          if [ $? -ne 0 ]; then
              _echo -e "安装 $1 失败."
              exit 1
-@@ -473,6 +475,23 @@
+@@ -473,6 +484,30 @@
      _echo -i "$1 安装完成."
  }
  
 +apt_update_safe(){
 +    export DEBIAN_FRONTEND=noninteractive
++    export DEBIAN_PRIORITY=critical
++    export NEEDRESTART_MODE=a
++    export NEEDRESTART_SUSPEND=1
++    if [ -d /etc/needrestart ] || [ -e /usr/sbin/needrestart ]; then
++        mkdir -p /etc/needrestart/conf.d
++        printf "%s\n" "\$nrconf{restart} = 'a';" "\$nrconf{kernelhints} = 0;" > /etc/needrestart/conf.d/99-ss-plugins.conf
++    fi
 +    timeout 240 apt-get \
 +        -o Dpkg::Use-Pty=0 \
 +        -o APT::Color=0 \
@@ -220,7 +268,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
  improt_package(){
      local package=$1
      local sh_file=$2
-@@ -489,6 +508,33 @@
+@@ -489,6 +524,33 @@
      fi
  }
  
@@ -254,7 +302,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
  disable_selinux(){
      if [ -s /etc/selinux/config ] && grep -q 'SELINUX=enforcing' /etc/selinux/config; then
          sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-@@ -599,13 +645,13 @@
+@@ -599,13 +661,13 @@
  check_script_update(){
      local isShow="${1:-"show"}"
  
@@ -270,7 +318,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
          echo -e "脚本已更新为最新版本[ ${SHELL_VERSION_NEW} ] !(注意：因为更新方式为直接覆盖当前运行的脚本，所以可能下面会提示一些报错，无视即可)" && exit 0
      else
          if [ "${isShow}" = "show" ]; then
-@@ -631,13 +677,13 @@
+@@ -631,13 +693,13 @@
  
  get_ip(){
      local IP=$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )
@@ -287,7 +335,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
      [ -z "${ipv6}" ] && return 1 || return 0
  }
  
-@@ -1581,4 +1627,4 @@
+@@ -1581,4 +1643,4 @@
      *)
          usage 1
          ;;
@@ -295,8 +343,8 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 \ No newline at end of file
 +esac
 diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
---- base/utils/dependencies.sh	2026-04-26 11:05:45
-+++ fixed/utils/dependencies.sh	2026-04-26 11:05:46
+--- base/utils/dependencies.sh	2026-04-26 11:39:57
++++ fixed/utils/dependencies.sh	2026-04-26 11:39:57
 @@ -16,13 +16,11 @@
      local command=$1
      local depend=$2
@@ -325,12 +373,18 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          fi
          ${command} > /dev/null 2>&1
          if [ $? -ne 0 ]; then
-@@ -55,14 +53,11 @@
+@@ -53,16 +51,16 @@
+ 
+ error_detect_depends(){
      local command=$1
-     local depend=`echo "${command}" | awk '{print $4}'`
+-    local depend=`echo "${command}" | awk '{print $4}'`
++    local depend="${command##* }"
      _echo -i "开始安装依赖包 ${depend}"
 -    ${command} > /dev/null 2>&1
 +    export DEBIAN_FRONTEND=noninteractive
++    export DEBIAN_PRIORITY=critical
++    export NEEDRESTART_MODE=a
++    export NEEDRESTART_SUSPEND=1
 +    ${command}
      if [ $? -ne 0 ]; then
          if check_sys sysRelease ubuntu || check_sys sysRelease debian; then
@@ -343,7 +397,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          else
              _echo -e "依赖包${Red}${depend}${suffix}安装失败，请检查. "
              echo "Checking the error message and run the script again."
-@@ -77,10 +72,10 @@
+@@ -77,10 +75,10 @@
      if check_sys packageManager yum; then
          _echo -i "检查EPEL存储库."
          if [ ! -f /etc/yum.repos.d/epel.repo ]; then
@@ -356,7 +410,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          if version_ge $(get_version) 8; then
              [ x"$(yum repolist epel | grep -w epel | awk '{print $NF}')" != x"enabled" ] && yum-config-manager --enable epel > /dev/null 2>&1
          else
-@@ -93,7 +88,8 @@
+@@ -93,29 +91,40 @@
          done
      elif check_sys packageManager apt; then
  
@@ -364,9 +418,10 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 +        export DEBIAN_FRONTEND=noninteractive
 +        apt_update_safe
          for depend in ${depends[@]}; do
-             error_detect_depends "apt-get -y install ${depend}"
+-            error_detect_depends "apt-get -y install ${depend}"
++            error_detect_depends "apt-get -y -o Dpkg::Use-Pty=0 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install ${depend}"
          done
-@@ -101,21 +97,31 @@
+     fi
  }
  
  install_dependencies_logic(){
@@ -401,7 +456,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          install_dependencies "${depends[*]}"
      fi
  
-@@ -123,7 +129,7 @@
+@@ -123,7 +132,7 @@
          if check_sys packageManager yum; then
              local depends=(chrony)
          elif check_sys packageManager apt; then
@@ -410,7 +465,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          fi
          install_dependencies "${depends[*]}"
      fi
-@@ -182,7 +188,7 @@
+@@ -182,7 +191,7 @@
      cd ${MBEDTLS_FILE}
      _echo -i "编译安装${MBEDTLS_FILE}."
      make SHARED=1 CFLAGS=-fPIC
@@ -419,7 +474,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
      if [ $? -ne 0 ]; then
          _echo -e "${MBEDTLS_FILE} ${installStatus}失败."
          install_cleanup
-@@ -244,4 +250,4 @@
+@@ -244,4 +253,4 @@
      else
          _echo -i "当前熵池熵值大于或等于1000，未进行更多添加."
      fi 
@@ -427,8 +482,8 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
---- base/utils/downloads.sh	2026-04-26 11:05:45
-+++ fixed/utils/downloads.sh	2026-04-26 11:05:46
+--- base/utils/downloads.sh	2026-04-26 11:39:57
++++ fixed/utils/downloads.sh	2026-04-26 11:39:57
 @@ -4,7 +4,7 @@
          echo "${filename} [已存在.]"
      else
@@ -469,8 +524,8 @@ diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
---- base/utils/gen_certificates.sh	2026-04-26 11:05:45
-+++ fixed/utils/gen_certificates.sh	2026-04-26 11:05:46
+--- base/utils/gen_certificates.sh	2026-04-26 11:39:57
++++ fixed/utils/gen_certificates.sh	2026-04-26 11:39:57
 @@ -205,7 +205,7 @@
      if [ -e "${ipcalc_install_path}" ]; then
          return
@@ -488,8 +543,8 @@ diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/update.sh fixed/utils/update.sh
---- base/utils/update.sh	2026-04-26 11:05:45
-+++ fixed/utils/update.sh	2026-04-26 11:05:46
+--- base/utils/update.sh	2026-04-26 11:39:57
++++ fixed/utils/update.sh	2026-04-26 11:39:57
 @@ -248,7 +248,7 @@
      local caddyVerFlag latestVersion
  
@@ -500,8 +555,8 @@ diff -ruN base/utils/update.sh fixed/utils/update.sh
      judge_current_version_num_is_none_and_output_error_info "${appName}" "${currentVersion}"
      judge_latest_version_num_is_none_and_output_error_info "${appName}" "${latestVersion}"
 diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
---- base/webServer/caddy_install.sh	2026-04-26 11:05:46
-+++ fixed/webServer/caddy_install.sh	2026-04-26 11:05:46
+--- base/webServer/caddy_install.sh	2026-04-26 11:39:57
++++ fixed/webServer/caddy_install.sh	2026-04-26 11:39:57
 @@ -44,7 +44,7 @@
  }
  
@@ -512,26 +567,55 @@ diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
      caddy_file="caddy_${caddy_ver}_linux_${ARCH}"
      caddy_url="https://github.com/caddyserver/caddy/releases/download/v${caddy_ver}/caddy_${caddy_ver}_linux_${ARCH}.tar.gz"
 diff -ruN base/webServer/nginx_install.sh fixed/webServer/nginx_install.sh
---- base/webServer/nginx_install.sh	2026-04-26 11:05:46
-+++ fixed/webServer/nginx_install.sh	2026-04-26 11:05:46
-@@ -77,7 +77,7 @@
+--- base/webServer/nginx_install.sh	2026-04-26 11:39:57
++++ fixed/webServer/nginx_install.sh	2026-04-26 11:39:57
+@@ -42,7 +42,7 @@
+        
+     elif check_sys sysRelease debian && version_ge ${version} 11; then
+         # 安装依赖
+-        apt install curl gnupg2 ca-certificates lsb-release debian-archive-keyring
++        apt-get -y -o Dpkg::Use-Pty=0 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install curl gnupg2 ca-certificates lsb-release debian-archive-keyring
+ 
+         local SIGNING_KEY="/etc/apt/trusted.gpg"; if [[ -e "${SIGNING_KEY}" ]]; then rm -f "${SIGNING_KEY}"; fi
+         local NGINX_LIST="/etc/apt/sources.list.d/nginx.list"; if [[ -e "${NGINX_LIST}" ]]; then rm -f "${NGINX_LIST}"; fi
+@@ -77,8 +77,8 @@
          fi
          
          # 安装nginx
 -        apt update
+-        apt install -y nginx
 +        apt_update_safe
-         apt install -y nginx
++        apt-get -y -o Dpkg::Use-Pty=0 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install nginx
          
          if [ $? -eq 0 ]; then
-@@ -121,7 +121,7 @@
+             _echo -i "nginx安装成功."
+@@ -86,7 +86,7 @@
+         
+     elif check_sys sysRelease ubuntu && version_ge ${version} 20.04; then
+         # 安装依赖
+-        apt install curl gnupg2 ca-certificates lsb-release ubuntu-keyring
++        apt-get -y -o Dpkg::Use-Pty=0 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install curl gnupg2 ca-certificates lsb-release ubuntu-keyring
+ 
+         local SIGNING_KEY="/etc/apt/trusted.gpg"; if [[ -e "${SIGNING_KEY}" ]]; then rm -f "${SIGNING_KEY}"; fi
+         local NGINX_LIST="/etc/apt/sources.list.d/nginx.list"; if [[ -e "${NGINX_LIST}" ]]; then rm -f "${NGINX_LIST}"; fi
+@@ -121,8 +121,8 @@
          fi
          
          # 安装nginx
 -        apt update
+-        apt install -y nginx
 +        apt_update_safe
-         apt install -y nginx
++        apt-get -y -o Dpkg::Use-Pty=0 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install nginx
          
          if [ $? -eq 0 ]; then
+             _echo -i "nginx安装成功."
+@@ -132,4 +132,4 @@
+ 
+ install_nginx(){
+     check_sys_and_add_source ${pkg_flag}
+-}
+\ No newline at end of file
++}
 SS_PLUGINS_FIXED_PATCH
 
 chmod +x ss-plugins.sh
