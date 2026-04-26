@@ -81,7 +81,7 @@ cd "${PATCH_DIR}"
 patch -p1 <<'SS_PLUGINS_FIXED_PATCH'
 diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 --- base/RUN_FIXED.md	1970-01-01 08:00:00
-+++ fixed/RUN_FIXED.md	2026-04-26 10:55:18
++++ fixed/RUN_FIXED.md	2026-04-26 11:05:46
 @@ -0,0 +1,27 @@
 +# ss-plugins fixed runner
 +
@@ -111,8 +111,8 @@ diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 +- Fixes mbedTLS install destination so libraries are installed under the normal
 +  prefix rather than `/usr/usr/local`.
 diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.sh
---- base/install/shadowsocks_install.sh	2026-04-26 10:55:18
-+++ fixed/install/shadowsocks_install.sh	2026-04-26 10:55:18
+--- base/install/shadowsocks_install.sh	2026-04-26 11:05:45
++++ fixed/install/shadowsocks_install.sh	2026-04-26 11:05:46
 @@ -1,9 +1,29 @@
  install_shadowsocks_libev(){
      cd ${CUR_DIR}
@@ -146,8 +146,8 @@ diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.
          chmod +x ${SHADOWSOCKS_LIBEV_INIT}
          local service_name=$(basename ${SHADOWSOCKS_LIBEV_INIT})
 diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.sh
---- base/install/simple_obfs_install.sh	2026-04-26 10:55:18
-+++ fixed/install/simple_obfs_install.sh	2026-04-26 10:55:18
+--- base/install/simple_obfs_install.sh	2026-04-26 11:05:45
++++ fixed/install/simple_obfs_install.sh	2026-04-26 11:05:46
 @@ -1,7 +1,7 @@
  install_simple_obfs(){
      cd ${CUR_DIR}
@@ -165,8 +165,8 @@ diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.
 \ No newline at end of file
 +}
 diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
---- base/ss-plugins.sh	2026-04-26 10:55:18
-+++ fixed/ss-plugins.sh	2026-04-26 10:55:18
+--- base/ss-plugins.sh	2026-04-26 11:05:45
++++ fixed/ss-plugins.sh	2026-04-26 11:05:46
 @@ -10,7 +10,8 @@
  
  
@@ -295,8 +295,8 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 \ No newline at end of file
 +esac
 diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
---- base/utils/dependencies.sh	2026-04-26 10:55:18
-+++ fixed/utils/dependencies.sh	2026-04-26 10:55:18
+--- base/utils/dependencies.sh	2026-04-26 11:05:45
++++ fixed/utils/dependencies.sh	2026-04-26 11:05:46
 @@ -16,13 +16,11 @@
      local command=$1
      local depend=$2
@@ -325,7 +325,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          fi
          ${command} > /dev/null 2>&1
          if [ $? -ne 0 ]; then
-@@ -55,7 +53,8 @@
+@@ -55,14 +53,11 @@
      local command=$1
      local depend=`echo "${command}" | awk '{print $4}'`
      _echo -i "开始安装依赖包 ${depend}"
@@ -334,8 +334,16 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 +    ${command}
      if [ $? -ne 0 ]; then
          if check_sys sysRelease ubuntu || check_sys sysRelease debian; then
-             if [ $(get_version) == '19.10' ] && [ ${depend} == 'asciidoc' ]; then
-@@ -77,10 +76,10 @@
+-            if [ $(get_version) == '19.10' ] && [ ${depend} == 'asciidoc' ]; then
+-                  error_asciidos_deps_of_ubuntu1901 "${command}" "${depend}"
+-            else
+-                  error_detect_deps_of_ubuntu "${command}" "${depend}"
+-            fi
++            error_detect_deps_of_ubuntu "${command}" "${depend}"
+         else
+             _echo -e "依赖包${Red}${depend}${suffix}安装失败，请检查. "
+             echo "Checking the error message and run the script again."
+@@ -77,10 +72,10 @@
      if check_sys packageManager yum; then
          _echo -i "检查EPEL存储库."
          if [ ! -f /etc/yum.repos.d/epel.repo ]; then
@@ -348,7 +356,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          if version_ge $(get_version) 8; then
              [ x"$(yum repolist epel | grep -w epel | awk '{print $NF}')" != x"enabled" ] && yum-config-manager --enable epel > /dev/null 2>&1
          else
-@@ -93,7 +92,8 @@
+@@ -93,7 +88,8 @@
          done
      elif check_sys packageManager apt; then
  
@@ -358,7 +366,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          for depend in ${depends[@]}; do
              error_detect_depends "apt-get -y install ${depend}"
          done
-@@ -101,21 +101,31 @@
+@@ -101,21 +97,31 @@
  }
  
  install_dependencies_logic(){
@@ -373,12 +381,12 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          if check_sys packageManager yum; then
              local depends=(
 -                gettext gcc pcre pcre-devel autoconf libtool automake make asciidoc xmlto c-ares-devel libev-devel zlib-devel openssl-devel git qrencode jq
-+                ca-certificates curl wget unzip gzip tar xz gettext gcc pcre pcre-devel pcre2-devel autoconf libtool automake make cmake pkgconfig asciidoc xmlto c-ares-devel libev-devel zlib-devel openssl-devel git qrencode jq
++                ca-certificates curl wget unzip gzip tar xz gettext gcc pcre pcre-devel pcre2-devel autoconf libtool automake make cmake pkgconfig c-ares-devel libev-devel zlib-devel openssl-devel git qrencode jq
              )
          elif check_sys packageManager apt; then
              local depends=(
 -                gettext gcc build-essential autoconf libtool libpcre3-dev asciidoc xmlto libev-dev libc-ares-dev automake libssl-dev git qrencode jq xz-utils
-+                ca-certificates curl wget unzip gzip tar xz-utils gettext gcc build-essential autoconf libtool cmake pkg-config libpcre3-dev libpcre2-dev asciidoc xmlto libev-dev libc-ares-dev automake libssl-dev git qrencode jq
++                ca-certificates curl wget unzip gzip tar xz-utils gettext gcc build-essential autoconf libtool cmake pkg-config libpcre3-dev libpcre2-dev libev-dev libc-ares-dev automake libssl-dev git qrencode jq
              )
          fi
          install_dependencies "${depends[*]}"
@@ -393,7 +401,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          install_dependencies "${depends[*]}"
      fi
  
-@@ -123,7 +133,7 @@
+@@ -123,7 +129,7 @@
          if check_sys packageManager yum; then
              local depends=(chrony)
          elif check_sys packageManager apt; then
@@ -402,7 +410,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          fi
          install_dependencies "${depends[*]}"
      fi
-@@ -182,7 +192,7 @@
+@@ -182,7 +188,7 @@
      cd ${MBEDTLS_FILE}
      _echo -i "编译安装${MBEDTLS_FILE}."
      make SHARED=1 CFLAGS=-fPIC
@@ -411,7 +419,7 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
      if [ $? -ne 0 ]; then
          _echo -e "${MBEDTLS_FILE} ${installStatus}失败."
          install_cleanup
-@@ -244,4 +254,4 @@
+@@ -244,4 +250,4 @@
      else
          _echo -i "当前熵池熵值大于或等于1000，未进行更多添加."
      fi 
@@ -419,8 +427,8 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
---- base/utils/downloads.sh	2026-04-26 10:55:18
-+++ fixed/utils/downloads.sh	2026-04-26 10:55:18
+--- base/utils/downloads.sh	2026-04-26 11:05:45
++++ fixed/utils/downloads.sh	2026-04-26 11:05:46
 @@ -4,7 +4,7 @@
          echo "${filename} [已存在.]"
      else
@@ -461,8 +469,8 @@ diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
---- base/utils/gen_certificates.sh	2026-04-26 10:55:18
-+++ fixed/utils/gen_certificates.sh	2026-04-26 10:55:18
+--- base/utils/gen_certificates.sh	2026-04-26 11:05:45
++++ fixed/utils/gen_certificates.sh	2026-04-26 11:05:46
 @@ -205,7 +205,7 @@
      if [ -e "${ipcalc_install_path}" ]; then
          return
@@ -480,8 +488,8 @@ diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/update.sh fixed/utils/update.sh
---- base/utils/update.sh	2026-04-26 10:55:18
-+++ fixed/utils/update.sh	2026-04-26 10:55:18
+--- base/utils/update.sh	2026-04-26 11:05:45
++++ fixed/utils/update.sh	2026-04-26 11:05:46
 @@ -248,7 +248,7 @@
      local caddyVerFlag latestVersion
  
@@ -492,8 +500,8 @@ diff -ruN base/utils/update.sh fixed/utils/update.sh
      judge_current_version_num_is_none_and_output_error_info "${appName}" "${currentVersion}"
      judge_latest_version_num_is_none_and_output_error_info "${appName}" "${latestVersion}"
 diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
---- base/webServer/caddy_install.sh	2026-04-26 10:55:18
-+++ fixed/webServer/caddy_install.sh	2026-04-26 10:55:18
+--- base/webServer/caddy_install.sh	2026-04-26 11:05:46
++++ fixed/webServer/caddy_install.sh	2026-04-26 11:05:46
 @@ -44,7 +44,7 @@
  }
  
@@ -504,8 +512,8 @@ diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
      caddy_file="caddy_${caddy_ver}_linux_${ARCH}"
      caddy_url="https://github.com/caddyserver/caddy/releases/download/v${caddy_ver}/caddy_${caddy_ver}_linux_${ARCH}.tar.gz"
 diff -ruN base/webServer/nginx_install.sh fixed/webServer/nginx_install.sh
---- base/webServer/nginx_install.sh	2026-04-26 10:55:18
-+++ fixed/webServer/nginx_install.sh	2026-04-26 10:55:18
+--- base/webServer/nginx_install.sh	2026-04-26 11:05:46
++++ fixed/webServer/nginx_install.sh	2026-04-26 11:05:46
 @@ -77,7 +77,7 @@
          fi
          
