@@ -63,7 +63,7 @@ cd "${PATCH_DIR}"
 patch -p1 <<'SS_PLUGINS_FIXED_PATCH'
 diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 --- base/RUN_FIXED.md	1970-01-01 08:00:00
-+++ fixed/RUN_FIXED.md	2026-04-26 08:38:18
++++ fixed/RUN_FIXED.md	2026-04-26 08:41:43
 @@ -0,0 +1,27 @@
 +# ss-plugins fixed runner
 +
@@ -93,11 +93,16 @@ diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 +- Fixes mbedTLS install destination so libraries are installed under the normal
 +  prefix rather than `/usr/usr/local`.
 diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.sh
---- base/install/shadowsocks_install.sh	2026-04-26 08:38:18
-+++ fixed/install/shadowsocks_install.sh	2026-04-26 08:38:18
-@@ -3,7 +3,25 @@
+--- base/install/shadowsocks_install.sh	2026-04-26 08:41:43
++++ fixed/install/shadowsocks_install.sh	2026-04-26 08:41:43
+@@ -1,9 +1,29 @@
+ install_shadowsocks_libev(){
+     cd ${CUR_DIR}
      pushd ${TEMP_DIR_PATH} > /dev/null 2>&1
-     tar zxf ${shadowsocks_libev_file}.tar.gz
+-    tar zxf ${shadowsocks_libev_file}.tar.gz
++    if [ ! -d "${shadowsocks_libev_file}" ]; then
++        tar zxf ${shadowsocks_libev_file}.tar.gz
++    fi
      cd ${shadowsocks_libev_file}
 -    ./configure --disable-documentation && make && make install
 +    if [ -x ./configure ]; then
@@ -123,8 +128,8 @@ diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.
          chmod +x ${SHADOWSOCKS_LIBEV_INIT}
          local service_name=$(basename ${SHADOWSOCKS_LIBEV_INIT})
 diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.sh
---- base/install/simple_obfs_install.sh	2026-04-26 08:38:18
-+++ fixed/install/simple_obfs_install.sh	2026-04-26 08:38:18
+--- base/install/simple_obfs_install.sh	2026-04-26 08:41:43
++++ fixed/install/simple_obfs_install.sh	2026-04-26 08:41:43
 @@ -1,7 +1,7 @@
  install_simple_obfs(){
      cd ${CUR_DIR}
@@ -142,8 +147,8 @@ diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.
 \ No newline at end of file
 +}
 diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
---- base/ss-plugins.sh	2026-04-26 08:38:18
-+++ fixed/ss-plugins.sh	2026-04-26 08:38:18
+--- base/ss-plugins.sh	2026-04-26 08:41:43
++++ fixed/ss-plugins.sh	2026-04-26 08:41:43
 @@ -10,7 +10,8 @@
  
  
@@ -248,8 +253,8 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 \ No newline at end of file
 +esac
 diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
---- base/utils/dependencies.sh	2026-04-26 08:38:18
-+++ fixed/utils/dependencies.sh	2026-04-26 08:38:18
+--- base/utils/dependencies.sh	2026-04-26 08:41:43
++++ fixed/utils/dependencies.sh	2026-04-26 08:41:43
 @@ -16,13 +16,11 @@
      local command=$1
      local depend=$2
@@ -361,8 +366,8 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
---- base/utils/downloads.sh	2026-04-26 08:38:18
-+++ fixed/utils/downloads.sh	2026-04-26 08:38:18
+--- base/utils/downloads.sh	2026-04-26 08:41:43
++++ fixed/utils/downloads.sh	2026-04-26 08:41:43
 @@ -4,7 +4,7 @@
          echo "${filename} [已存在.]"
      else
@@ -381,7 +386,21 @@ diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
      if [ "${repositoryName}" = "shadowsocks-rust" ]; then
          allVersion=$(echo "${allVersion}" | grep -v "alpha")
      fi
-@@ -315,4 +315,4 @@
+@@ -89,9 +89,11 @@
+         judge_latest_version_num_is_none_and_output_error_info "${ssName}" "${libev_ver}"
+ 
+         shadowsocks_libev_file="shadowsocks-libev-${libev_ver}"
+-        shadowsocks_libev_url="https://github.com/shadowsocks/shadowsocks-libev/releases/download/v${libev_ver}/shadowsocks-libev-${libev_ver}.tar.gz"
++        shadowsocks_libev_url="https://github.com/shadowsocks/shadowsocks-libev.git"
+         pushd ${TEMP_DIR_PATH} > /dev/null 2>&1
+-        download "${shadowsocks_libev_file}.tar.gz" "${shadowsocks_libev_url}"
++        if [ ! -d "${shadowsocks_libev_file}" ]; then
++            git clone --depth 1 --recursive --shallow-submodules --branch "v${libev_ver}" "${shadowsocks_libev_url}" "${shadowsocks_libev_file}"
++        fi
+         popd > /dev/null 2>&1
+         download_service_file ${SHADOWSOCKS_LIBEV_INIT} ${SHADOWSOCKS_LIBEV_INIT_ONLINE} ${SHADOWSOCKS_LIBEV_INIT_LOCAL}
+     elif [[ ${SS_VERSION} = "ss-rust" ]]; then
+@@ -315,4 +317,4 @@
          download "${gun_file}" "${gun_url}"
          popd > /dev/null 2>&1
      fi
@@ -389,8 +408,8 @@ diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
---- base/utils/gen_certificates.sh	2026-04-26 08:38:18
-+++ fixed/utils/gen_certificates.sh	2026-04-26 08:38:18
+--- base/utils/gen_certificates.sh	2026-04-26 08:41:43
++++ fixed/utils/gen_certificates.sh	2026-04-26 08:41:43
 @@ -205,7 +205,7 @@
      if [ -e "${ipcalc_install_path}" ]; then
          return
@@ -408,8 +427,8 @@ diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/update.sh fixed/utils/update.sh
---- base/utils/update.sh	2026-04-26 08:38:18
-+++ fixed/utils/update.sh	2026-04-26 08:38:18
+--- base/utils/update.sh	2026-04-26 08:41:43
++++ fixed/utils/update.sh	2026-04-26 08:41:43
 @@ -248,7 +248,7 @@
      local caddyVerFlag latestVersion
  
@@ -420,8 +439,8 @@ diff -ruN base/utils/update.sh fixed/utils/update.sh
      judge_current_version_num_is_none_and_output_error_info "${appName}" "${currentVersion}"
      judge_latest_version_num_is_none_and_output_error_info "${appName}" "${latestVersion}"
 diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
---- base/webServer/caddy_install.sh	2026-04-26 08:38:18
-+++ fixed/webServer/caddy_install.sh	2026-04-26 08:38:18
+--- base/webServer/caddy_install.sh	2026-04-26 08:41:43
++++ fixed/webServer/caddy_install.sh	2026-04-26 08:41:43
 @@ -44,7 +44,7 @@
  }
  
