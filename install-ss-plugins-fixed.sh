@@ -6,6 +6,7 @@ INSTALL_DIR="${SS_PLUGINS_INSTALL_DIR:-/root/ss-plugins-fixed}"
 RUN_AFTER_PATCH="${SS_PLUGINS_RUN:-1}"
 
 info(){ printf '\033[32m[信息]\033[0m %s\n' "$*"; }
+warn(){ printf '\033[0;33m[警告]\033[0m %s\n' "$*"; }
 err(){ printf '\033[31m[错误]\033[0m %s\n' "$*" >&2; }
 
 [ "${EUID}" -ne 0 ] && err "请用 root 运行这个安装器。" && exit 1
@@ -19,10 +20,27 @@ else
     exit 1
 fi
 
+apt_update_safe(){
+    export DEBIAN_FRONTEND=noninteractive
+    timeout 240 apt-get \
+        -o Dpkg::Use-Pty=0 \
+        -o APT::Color=0 \
+        -o APT::Update::Post-Invoke-Success::= \
+        -o APT::Update::Post-Invoke::= \
+        -y update
+    local status=$?
+    if [ ${status} -eq 124 ]; then
+        pkill -f /usr/lib/update-notifier/apt-check >/dev/null 2>&1 || true
+        warn "apt update 后置检查超时，已跳过 update-notifier apt-check."
+        return 0
+    fi
+    return ${status}
+}
+
 install_bootstrap_deps(){
     if [ "${PM}" = "apt" ]; then
         export DEBIAN_FRONTEND=noninteractive
-        apt-get -y update
+        apt_update_safe
         apt-get -y install ca-certificates curl wget tar gzip patch
     else
         yum install -y ca-certificates curl wget tar gzip patch
@@ -63,7 +81,7 @@ cd "${PATCH_DIR}"
 patch -p1 <<'SS_PLUGINS_FIXED_PATCH'
 diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 --- base/RUN_FIXED.md	1970-01-01 08:00:00
-+++ fixed/RUN_FIXED.md	2026-04-26 08:41:43
++++ fixed/RUN_FIXED.md	2026-04-26 10:55:18
 @@ -0,0 +1,27 @@
 +# ss-plugins fixed runner
 +
@@ -93,8 +111,8 @@ diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 +- Fixes mbedTLS install destination so libraries are installed under the normal
 +  prefix rather than `/usr/usr/local`.
 diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.sh
---- base/install/shadowsocks_install.sh	2026-04-26 08:41:43
-+++ fixed/install/shadowsocks_install.sh	2026-04-26 08:41:43
+--- base/install/shadowsocks_install.sh	2026-04-26 10:55:18
++++ fixed/install/shadowsocks_install.sh	2026-04-26 10:55:18
 @@ -1,9 +1,29 @@
  install_shadowsocks_libev(){
      cd ${CUR_DIR}
@@ -128,8 +146,8 @@ diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.
          chmod +x ${SHADOWSOCKS_LIBEV_INIT}
          local service_name=$(basename ${SHADOWSOCKS_LIBEV_INIT})
 diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.sh
---- base/install/simple_obfs_install.sh	2026-04-26 08:41:43
-+++ fixed/install/simple_obfs_install.sh	2026-04-26 08:41:43
+--- base/install/simple_obfs_install.sh	2026-04-26 10:55:18
++++ fixed/install/simple_obfs_install.sh	2026-04-26 10:55:18
 @@ -1,7 +1,7 @@
  install_simple_obfs(){
      cd ${CUR_DIR}
@@ -147,8 +165,8 @@ diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.
 \ No newline at end of file
 +}
 diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
---- base/ss-plugins.sh	2026-04-26 08:41:43
-+++ fixed/ss-plugins.sh	2026-04-26 08:41:43
+--- base/ss-plugins.sh	2026-04-26 10:55:18
++++ fixed/ss-plugins.sh	2026-04-26 10:55:18
 @@ -10,7 +10,8 @@
  
  
@@ -173,12 +191,36 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 -        apt-get -y update > /dev/null 2>&1
 -        apt-get -y install $1 > /dev/null 2>&1
 +        export DEBIAN_FRONTEND=noninteractive
-+        apt-get -y update
++        apt_update_safe
 +        apt-get -y install $1
          if [ $? -ne 0 ]; then
              _echo -e "安装 $1 失败."
              exit 1
-@@ -489,6 +491,33 @@
+@@ -473,6 +475,23 @@
+     _echo -i "$1 安装完成."
+ }
+ 
++apt_update_safe(){
++    export DEBIAN_FRONTEND=noninteractive
++    timeout 240 apt-get \
++        -o Dpkg::Use-Pty=0 \
++        -o APT::Color=0 \
++        -o APT::Update::Post-Invoke-Success::= \
++        -o APT::Update::Post-Invoke::= \
++        -y update
++    local status=$?
++    if [ ${status} -eq 124 ]; then
++        pkill -f /usr/lib/update-notifier/apt-check > /dev/null 2>&1 || true
++        _echo -t "apt update 后置检查超时，已跳过 update-notifier apt-check."
++        return 0
++    fi
++    return ${status}
++}
++
+ improt_package(){
+     local package=$1
+     local sh_file=$2
+@@ -489,6 +508,33 @@
      fi
  }
  
@@ -212,7 +254,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
  disable_selinux(){
      if [ -s /etc/selinux/config ] && grep -q 'SELINUX=enforcing' /etc/selinux/config; then
          sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-@@ -599,13 +628,13 @@
+@@ -599,13 +645,13 @@
  check_script_update(){
      local isShow="${1:-"show"}"
  
@@ -228,7 +270,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
          echo -e "脚本已更新为最新版本[ ${SHELL_VERSION_NEW} ] !(注意：因为更新方式为直接覆盖当前运行的脚本，所以可能下面会提示一些报错，无视即可)" && exit 0
      else
          if [ "${isShow}" = "show" ]; then
-@@ -631,13 +660,13 @@
+@@ -631,13 +677,13 @@
  
  get_ip(){
      local IP=$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )
@@ -245,7 +287,7 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
      [ -z "${ipv6}" ] && return 1 || return 0
  }
  
-@@ -1581,4 +1610,4 @@
+@@ -1581,4 +1627,4 @@
      *)
          usage 1
          ;;
@@ -253,8 +295,8 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 \ No newline at end of file
 +esac
 diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
---- base/utils/dependencies.sh	2026-04-26 08:41:43
-+++ fixed/utils/dependencies.sh	2026-04-26 08:41:43
+--- base/utils/dependencies.sh	2026-04-26 10:55:18
++++ fixed/utils/dependencies.sh	2026-04-26 10:55:18
 @@ -16,13 +16,11 @@
      local command=$1
      local depend=$2
@@ -269,11 +311,20 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 +    export DEBIAN_FRONTEND=noninteractive
 +    dpkg --configure -a
 +    apt-get -f -y install
-+    apt-get -y update
++    apt_update_safe
 +    ${command}
      if [ $? -ne 0 ]; then
          _echo -e "依赖包${Red}${depend}${suffix}安装失败，请检查. "
          echo "Checking the error message and run the script again."
+@@ -40,7 +38,7 @@
+     if [ $? -ne 0 ]; then
+         if ls -l /var/lib/dpkg/info | grep -qi 'python-sympy'; then
+             mv -f /var/lib/dpkg/info/python-sympy.* /tmp
+-            apt update > /dev/null 2>&1
++            apt_update_safe > /dev/null 2>&1
+         fi
+         ${command} > /dev/null 2>&1
+         if [ $? -ne 0 ]; then
 @@ -55,7 +53,8 @@
      local command=$1
      local depend=`echo "${command}" | awk '{print $4}'`
@@ -297,14 +348,16 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
          if version_ge $(get_version) 8; then
              [ x"$(yum repolist epel | grep -w epel | awk '{print $NF}')" != x"enabled" ] && yum-config-manager --enable epel > /dev/null 2>&1
          else
-@@ -93,6 +92,7 @@
+@@ -93,7 +92,8 @@
          done
      elif check_sys packageManager apt; then
  
+-        apt-get -y update
 +        export DEBIAN_FRONTEND=noninteractive
-         apt-get -y update
++        apt_update_safe
          for depend in ${depends[@]}; do
              error_detect_depends "apt-get -y install ${depend}"
+         done
 @@ -101,21 +101,31 @@
  }
  
@@ -366,8 +419,8 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
---- base/utils/downloads.sh	2026-04-26 08:41:43
-+++ fixed/utils/downloads.sh	2026-04-26 08:41:43
+--- base/utils/downloads.sh	2026-04-26 10:55:18
++++ fixed/utils/downloads.sh	2026-04-26 10:55:18
 @@ -4,7 +4,7 @@
          echo "${filename} [已存在.]"
      else
@@ -408,8 +461,8 @@ diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
---- base/utils/gen_certificates.sh	2026-04-26 08:41:43
-+++ fixed/utils/gen_certificates.sh	2026-04-26 08:41:43
+--- base/utils/gen_certificates.sh	2026-04-26 10:55:18
++++ fixed/utils/gen_certificates.sh	2026-04-26 10:55:18
 @@ -205,7 +205,7 @@
      if [ -e "${ipcalc_install_path}" ]; then
          return
@@ -427,8 +480,8 @@ diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/update.sh fixed/utils/update.sh
---- base/utils/update.sh	2026-04-26 08:41:43
-+++ fixed/utils/update.sh	2026-04-26 08:41:43
+--- base/utils/update.sh	2026-04-26 10:55:18
++++ fixed/utils/update.sh	2026-04-26 10:55:18
 @@ -248,7 +248,7 @@
      local caddyVerFlag latestVersion
  
@@ -439,8 +492,8 @@ diff -ruN base/utils/update.sh fixed/utils/update.sh
      judge_current_version_num_is_none_and_output_error_info "${appName}" "${currentVersion}"
      judge_latest_version_num_is_none_and_output_error_info "${appName}" "${latestVersion}"
 diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
---- base/webServer/caddy_install.sh	2026-04-26 08:41:43
-+++ fixed/webServer/caddy_install.sh	2026-04-26 08:41:43
+--- base/webServer/caddy_install.sh	2026-04-26 10:55:18
++++ fixed/webServer/caddy_install.sh	2026-04-26 10:55:18
 @@ -44,7 +44,7 @@
  }
  
@@ -450,6 +503,27 @@ diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
      [ -z ${caddy_ver} ] && _echo -e "获取 caddy 最新版本失败." && exit 1
      caddy_file="caddy_${caddy_ver}_linux_${ARCH}"
      caddy_url="https://github.com/caddyserver/caddy/releases/download/v${caddy_ver}/caddy_${caddy_ver}_linux_${ARCH}.tar.gz"
+diff -ruN base/webServer/nginx_install.sh fixed/webServer/nginx_install.sh
+--- base/webServer/nginx_install.sh	2026-04-26 10:55:18
++++ fixed/webServer/nginx_install.sh	2026-04-26 10:55:18
+@@ -77,7 +77,7 @@
+         fi
+         
+         # 安装nginx
+-        apt update
++        apt_update_safe
+         apt install -y nginx
+         
+         if [ $? -eq 0 ]; then
+@@ -121,7 +121,7 @@
+         fi
+         
+         # 安装nginx
+-        apt update
++        apt_update_safe
+         apt install -y nginx
+         
+         if [ $? -eq 0 ]; then
 SS_PLUGINS_FIXED_PATCH
 
 chmod +x ss-plugins.sh
