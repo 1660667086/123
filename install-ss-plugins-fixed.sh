@@ -106,7 +106,7 @@ cd "${PATCH_DIR}"
 patch -p1 <<'SS_PLUGINS_FIXED_PATCH'
 diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 --- base/RUN_FIXED.md	1970-01-01 08:00:00
-+++ fixed/RUN_FIXED.md	2026-04-26 11:39:57
++++ fixed/RUN_FIXED.md	2026-04-28 11:21:18
 @@ -0,0 +1,27 @@
 +# ss-plugins fixed runner
 +
@@ -136,8 +136,8 @@ diff -ruN base/RUN_FIXED.md fixed/RUN_FIXED.md
 +- Fixes mbedTLS install destination so libraries are installed under the normal
 +  prefix rather than `/usr/usr/local`.
 diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.sh
---- base/install/shadowsocks_install.sh	2026-04-26 11:39:57
-+++ fixed/install/shadowsocks_install.sh	2026-04-26 11:39:57
+--- base/install/shadowsocks_install.sh	2026-04-28 11:21:18
++++ fixed/install/shadowsocks_install.sh	2026-04-28 11:21:18
 @@ -1,9 +1,29 @@
  install_shadowsocks_libev(){
      cd ${CUR_DIR}
@@ -171,8 +171,8 @@ diff -ruN base/install/shadowsocks_install.sh fixed/install/shadowsocks_install.
          chmod +x ${SHADOWSOCKS_LIBEV_INIT}
          local service_name=$(basename ${SHADOWSOCKS_LIBEV_INIT})
 diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.sh
---- base/install/simple_obfs_install.sh	2026-04-26 11:39:57
-+++ fixed/install/simple_obfs_install.sh	2026-04-26 11:39:57
+--- base/install/simple_obfs_install.sh	2026-04-28 11:21:18
++++ fixed/install/simple_obfs_install.sh	2026-04-28 11:21:18
 @@ -1,7 +1,7 @@
  install_simple_obfs(){
      cd ${CUR_DIR}
@@ -190,8 +190,8 @@ diff -ruN base/install/simple_obfs_install.sh fixed/install/simple_obfs_install.
 \ No newline at end of file
 +}
 diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
---- base/ss-plugins.sh	2026-04-26 11:39:57
-+++ fixed/ss-plugins.sh	2026-04-26 11:39:57
+--- base/ss-plugins.sh	2026-04-28 11:21:18
++++ fixed/ss-plugins.sh	2026-04-28 11:21:18
 @@ -1,6 +1,11 @@
  #!/usr/bin/env bash
  PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
@@ -343,8 +343,8 @@ diff -ruN base/ss-plugins.sh fixed/ss-plugins.sh
 \ No newline at end of file
 +esac
 diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
---- base/utils/dependencies.sh	2026-04-26 11:39:57
-+++ fixed/utils/dependencies.sh	2026-04-26 11:39:57
+--- base/utils/dependencies.sh	2026-04-28 11:21:18
++++ fixed/utils/dependencies.sh	2026-04-28 11:21:18
 @@ -16,13 +16,11 @@
      local command=$1
      local depend=$2
@@ -482,8 +482,8 @@ diff -ruN base/utils/dependencies.sh fixed/utils/dependencies.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
---- base/utils/downloads.sh	2026-04-26 11:39:57
-+++ fixed/utils/downloads.sh	2026-04-26 11:39:57
+--- base/utils/downloads.sh	2026-04-28 11:21:18
++++ fixed/utils/downloads.sh	2026-04-28 11:21:18
 @@ -4,7 +4,7 @@
          echo "${filename} [已存在.]"
      else
@@ -523,9 +523,43 @@ diff -ruN base/utils/downloads.sh fixed/utils/downloads.sh
 -}
 \ No newline at end of file
 +}
+diff -ruN base/utils/firewalls.sh fixed/utils/firewalls.sh
+--- base/utils/firewalls.sh	2026-04-28 11:21:18
++++ fixed/utils/firewalls.sh	2026-04-28 11:21:18
+@@ -22,16 +22,14 @@
+         ip6tables_start
+         ip6tables-save > /etc/sysconfig/ip6tables
+     elif check_sys packageManager apt; then
+-        if [ ! -e "/etc/systemd/system/multi-user.target.wants/netfilter-persistent.service" ]; then
+-            # ref: https://gist.github.com/alonisser/a2c19f5362c2091ac1e7
+-            echo 'iptables-persistent iptables-persistent/autosave_v4 boolean true' | debconf-set-selections
+-            echo 'iptables-persistent iptables-persistent/autosave_v6 boolean true' | debconf-set-selections
+-            package_install "iptables-persistent"
++        if [ -e "/etc/systemd/system/multi-user.target.wants/netfilter-persistent.service" ] || [ "$(command -v netfilter-persistent)" ]; then
++            mkdir -p /etc/iptables
++            iptables-save > /etc/iptables/rules.v4
++            ip6tables-save > /etc/iptables/rules.v6
++            netfilter-persistent save > /dev/null 2>&1 || true
++        else
++            _echo -t "未安装 netfilter-persistent，已添加临时 iptables 规则，跳过自动安装 iptables-persistent 以避免 apt 卡顿."
+         fi
+-        iptables_start
+-        iptables-save > /etc/iptables/rules.v4
+-        ip6tables_start
+-        ip6tables-save > /etc/iptables/rules.v6
+     fi
+ }
+ 
+@@ -155,4 +153,4 @@
+     view_firewll_rule "${firewallNeedOpenPort}"
+     write_env_variable "PORXY_INBOUND_PORT=${firewallNeedOpenPort}"
+     write_env_variable "FIREWALL_MANAGE_TOOL=${FIREWALL_MANAGE_TOOL}"
+-}
+\ No newline at end of file
++}
 diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
---- base/utils/gen_certificates.sh	2026-04-26 11:39:57
-+++ fixed/utils/gen_certificates.sh	2026-04-26 11:39:57
+--- base/utils/gen_certificates.sh	2026-04-28 11:21:18
++++ fixed/utils/gen_certificates.sh	2026-04-28 11:21:18
 @@ -205,7 +205,7 @@
      if [ -e "${ipcalc_install_path}" ]; then
          return
@@ -543,8 +577,8 @@ diff -ruN base/utils/gen_certificates.sh fixed/utils/gen_certificates.sh
 \ No newline at end of file
 +}
 diff -ruN base/utils/update.sh fixed/utils/update.sh
---- base/utils/update.sh	2026-04-26 11:39:57
-+++ fixed/utils/update.sh	2026-04-26 11:39:57
+--- base/utils/update.sh	2026-04-28 11:21:18
++++ fixed/utils/update.sh	2026-04-28 11:21:18
 @@ -248,7 +248,7 @@
      local caddyVerFlag latestVersion
  
@@ -555,8 +589,8 @@ diff -ruN base/utils/update.sh fixed/utils/update.sh
      judge_current_version_num_is_none_and_output_error_info "${appName}" "${currentVersion}"
      judge_latest_version_num_is_none_and_output_error_info "${appName}" "${latestVersion}"
 diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
---- base/webServer/caddy_install.sh	2026-04-26 11:39:57
-+++ fixed/webServer/caddy_install.sh	2026-04-26 11:39:57
+--- base/webServer/caddy_install.sh	2026-04-28 11:21:18
++++ fixed/webServer/caddy_install.sh	2026-04-28 11:21:18
 @@ -44,7 +44,7 @@
  }
  
@@ -567,8 +601,8 @@ diff -ruN base/webServer/caddy_install.sh fixed/webServer/caddy_install.sh
      caddy_file="caddy_${caddy_ver}_linux_${ARCH}"
      caddy_url="https://github.com/caddyserver/caddy/releases/download/v${caddy_ver}/caddy_${caddy_ver}_linux_${ARCH}.tar.gz"
 diff -ruN base/webServer/nginx_install.sh fixed/webServer/nginx_install.sh
---- base/webServer/nginx_install.sh	2026-04-26 11:39:57
-+++ fixed/webServer/nginx_install.sh	2026-04-26 11:39:57
+--- base/webServer/nginx_install.sh	2026-04-28 11:21:18
++++ fixed/webServer/nginx_install.sh	2026-04-28 11:21:18
 @@ -42,7 +42,7 @@
         
      elif check_sys sysRelease debian && version_ge ${version} 11; then
